@@ -41,6 +41,10 @@ static unsigned char *heap_listp; // 힙의 시작점을 가리킬 포인터
 
 typedef int data_t;
 
+static void *find_fit(size_t asize);//함수 프로토타입
+static void place(void *bp, size_t asize);
+int round_up(int n, int m);
+
 /* 함수 구현 */
 void init_mem(){
     heap_listp = mem_pool;
@@ -73,13 +77,13 @@ unsigned char *mm_alloc(size_t size){//구현완
     bp = find_fit(asize);
 
     if(bp == NULL){
-        return NULL
+        return NULL;
     }
 
     // 4. 찾았을 경우 배치(Place)
     place(bp, asize);
 
-    return bp;
+    return (unsigned char*)bp;
 }
 
 void mm_free(unsigned char *p){
@@ -105,29 +109,20 @@ static void *find_fit(size_t asize){//구현완
 
 static void place(void *bp, size_t asize){
     size_t csize = GET_SIZE(HDRP(bp)); // current block size를 담을 변수
-    void* next_bp = NEXT_BLKP(HDRP(bp));
+    void* next_bp = NEXT_BLKP(bp); //블록 포인터를 기존 블록 사이즈 기준의 다음 블록의 헤더로 이동
     int isPrevAlloc = GET_PREV_ALLOC(HDRP(bp));
     
     if(csize - asize<16){
         PUT(HDRP(bp), PACK(csize, 1, isPrevAlloc)); //할당되었다고 업데이트하기
-        PUT(HDRP(next_bp), PACK(GET_SIZE(HDRP(next_bp)), GET_ALLOC(HDRP(next_bp)), 2))//다음 블록의 헤더도 이전 블록이 할당되었다고 업데이트하기
+        PUT(HDRP(next_bp), PACK(GET_SIZE(HDRP(next_bp)), GET_ALLOC(HDRP(next_bp)), 2));//다음 블록의 헤더도 이전 블록이 할당되었다고 업데이트하기
     }
     else{
-        PUT(HDRP(bp),)
+        PUT(HDRP(bp),PACK(asize, 1, isPrevAlloc));//split해서 필요한 만큼만 공간 할당하기
+        void* nextbp = NEXT_BLKP(bp);//할당되지 않은 다음 공간으로 이동하기
+        PUT(HDRP(nextbp), PACK(csize-asize, 0, 2));//할당한 정보 헤더에 업데이트
+        PUT(FTRP(nextbp), PACK(csize-asize, 0, 2));//할당한 정보 푸터에도 업데이트
+        PUT(HDRP(next_bp), PACK(GET_SIZE(HDRP(next_bp)), GET_ALLOC(HDRP(next_bp)), 0));//나누기 전의 블록의 다음 블록의 헤더의 previous block을 할당x(0) 상태로 변경 
     }
-    /* 
-    Todo
-        1. 현재 블록의 전체 크기 가져오기
-        2. (전체 크기 - 필요 크기)가 최소 블록 크기(16) 보다 크다면?
-            -> 앞부분은 할당(Header만 씀, Next Block의 Prev_Alloc 1로 설정)
-            -> 뒷부분은 Free(Header + Footer 씀, NextBlock의 Prev_Alloc 0으로 설정)
-        3. 아니면?
-            -> 그냥 통째로 할당 상태로 변경
-    */
-    // - 만약 남는 공간이 충분히 크면 쪼갠다 (Split)
-    // - 아니면 통째로 준다
-    // - 리턴: 블록의 포인터(bp)
-
 }
 
 int round_up(int n, int m){//구현완
@@ -142,14 +137,14 @@ int main(){
     DO_SHOW(p[1] = mm_alloc(300));
     DO_SHOW(p[2] = mm_alloc(70));
     DO_SHOW(p[3] = mm_alloc(180));
-    DO_SHOW(mm_free(p[2]));
-    DO_SHOW(mm_free(p[3]));
+    //DO_SHOW(mm_free(p[2]));
+    //DO_SHOW(mm_free(p[3]));
     DO_SHOW(p[4]= mm_alloc(50));
-    DO_SHOW(mm_free(p[0]));
-    DO_SHOW(mm_free(p[1]));
+    //DO_SHOW(mm_free(p[0]));
+    //DO_SHOW(mm_free(p[1]));
     DO_SHOW(p[5] = mm_alloc(120));
-    DO_SHOW(mm_free(p[4]));
-    DO_SHOW(mm_free(p[5]));
+    //DO_SHOW(mm_free(p[4]));
+    //DO_SHOW(mm_free(p[5]));
 
 
     return 0;
