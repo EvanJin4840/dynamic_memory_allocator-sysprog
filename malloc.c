@@ -35,7 +35,19 @@
 // 주의: PREV_BLKP는 이전 블록이 Free 상태일 때만 유효함 (Footer를 통해 이동)
 #define PREV_BLKP(bp)   ((char *)(bp) - GET_SIZE(((char *)(bp) - DSIZE)))
 
-/* 전약 변수 설정*/
+/* Explicit Free List를 위한 추가 매크로 */
+// 가용 블록의 payload 내에 저장된 포인터를 읽는 매크로
+#define PRED_PTR(bp) ((char *)(bp))             // 이전 가용 블록 주소를 담을 위치
+#define SUCC_PTR(bp) ((char *)(bp) + WSIZE)     // 다음 가용 블록 주소를 담을 위치
+
+// 해당 위치에 있는 주소값을 읽거나 쓰기
+#define GET_PRED(bp) (*(char **)(PRED_PTR(bp)))
+#define GET_SUCC(bp) (*(char **)(SUCC_PTR(bp)))
+
+/* 전역 변수 추가 */
+static char *free_listp; // 가용 리스트의 첫 번째 블록을 가리키는 포인터
+
+/* 전역 변수 설정*/
 static char mem_pool[MEM_SIZE]; // 800 바이트 크기의 정적 메모리 배열
 static char *heap_listp; // 힙의 시작점을 가리킬 포인터
 
