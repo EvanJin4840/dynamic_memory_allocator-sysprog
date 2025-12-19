@@ -35,9 +35,19 @@
 // 주의: PREV_BLKP는 이전 블록이 Free 상태일 때만 유효함 (Footer를 통해 이동)
 #define PREV_BLKP(bp)   ((char *)(bp) - GET_SIZE(((char *)(bp) - DSIZE)))
 
-/* 전약 변수 설정*/
+/* Explicit Free List를 위한 추가 매크로 */
+// 가용 블록의 payload 내에 저장된 포인터를 읽는 매크로
+#define PRED_PTR(bp) ((char *)(bp))             // 이전 가용 블록 주소를 담을 위치
+#define SUCC_PTR(bp) ((char *)(bp) + WSIZE)     // 다음 가용 블록 주소를 담을 위치
+
+// 해당 위치에 있는 주소값을 읽거나 쓰기
+#define GET_PRED(bp) (*(char **)(PRED_PTR(bp)))
+#define GET_SUCC(bp) (*(char **)(SUCC_PTR(bp)))
+
+/* 전역 변수 설정*/
 static char mem_pool[MEM_SIZE]; // 800 바이트 크기의 정적 메모리 배열
 static char *heap_listp; // 힙의 시작점을 가리킬 포인터
+static char *free_listp; // 가용 리스트의 첫 번째 블록을 가리키는 포인터
 
 typedef int data_t;
 
@@ -45,6 +55,13 @@ static void *find_fit(size_t asize);//함수 프로토타입
 static void place(void *bp, size_t asize);
 int round_up(int n, int m);
 char *coalesce(char *p);
+
+void insert_node(char *bp){
+    
+}
+
+
+void delete_node(char *bp);
 
 /* 함수 구현 */
 void init_mem(){
@@ -121,21 +138,25 @@ char *coalesce(char *p){
     // Case 1(Default): 앞 할당O, 뒤는 free된 경우
     if(GET_PREV_ALLOC(current_hdrp) == 2 && GET_ALLOC(HDRP(next_bp)) == 1){
         printf("free a block %lu size => No merging.\n", size);
+        insert_node(p);
         return p;
     } 
     // Case 2: 앞 블록은 할당O, 뒤 블록은 free된 경우
     else if(GET_PREV_ALLOC(current_hdrp) == 2 && GET_ALLOC(HDRP(next_bp)) == 0){
+        delete_node(next_bp);
         size_t next_size = GET_SIZE(HDRP(next_bp));
         printf("free a block %lu size => merging next block(%lu) = %lu\n", size, next_size, size+next_size);
         size += next_size; // size += next_size
         prev_alloc = GET_PREV_ALLOC(HDRP(p));
         PUT(current_hdrp, PACK(size, 0, prev_alloc)); // 현재 헤더 위치에 크기 갱신
         PUT(FTRP(next_bp), PACK(size, 0, prev_alloc));
+        insert_node(p);
         return p;
     }
     // Case 3: 앞 블록은 free, 뒤는 할당된 상태인 경우
     else if(GET_PREV_ALLOC(current_hdrp) != 2 && GET_ALLOC(HDRP(next_bp)) == 1){
         char *prev_bp = PREV_BLKP(p);
+        delete_node(prev_bp);
         size_t prev_size = GET_SIZE(HDRP(prev_bp));
         printf("free a block %lu size => merging prev block(%lu) = %lu\n", size, prev_size, size+prev_size);
         size += GET_SIZE(HDRP(prev_bp));
@@ -143,11 +164,14 @@ char *coalesce(char *p){
         PUT(HDRP(prev_bp), PACK(size, 0, prev_alloc)); //이전 블록의 헤더 갱신
         PUT(FTRP(p), PACK(size, 0, prev_alloc)); // 현재 블록의 푸터 갱신
         p = prev_bp; // p를 이전 블록의 페이로드를 가리키도록 갱신
+        insert_node(p);
         return p;
     }
     //Case 4: 앞, 뒤 블록 모두 free되어 있는 경우
     else {
         char *prev_bp = PREV_BLKP(p);
+        delete_node(prev_bp);
+        delete_node(next_bp);
         size_t prev_size = GET_SIZE(HDRP(prev_bp));
         size_t next_size = GET_SIZE(HDRP(next_bp));
         printf("free a block %lu size => merging prev block(%lu) + next block(%lu) = %lu\n", size, prev_size, next_size, size+prev_size+next_size);
@@ -156,6 +180,7 @@ char *coalesce(char *p){
         PUT(HDRP(prev_bp), PACK(size, 0, prev_alloc)); // 이전 블록 헤더 갱신
         PUT(FTRP(next_bp), PACK(size, 0, prev_alloc)); // 다음 블록의 푸터에 전체 크기 쓰기 
         p = (HDRP(prev_bp) + WSIZE);
+        insert_node(p);
         return p; 
     }
 }
